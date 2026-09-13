@@ -1,3 +1,5 @@
 discord.py
 feedparser
 python-dotenv
+requests
+beautifulsoup4

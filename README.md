@@ -1,15 +1,14 @@
 # 🤖 AI News Bot
 
-Bot Discord otomatis yang mengirimkan breaking news seputar dunia Artificial Intelligence (AI) setiap hari. Bot ini mengambil berita terbaru dari sumber-sumber tepercaya, lalu mengirimkannya ke channel Discord dalam format yang rapi dan mudah dibaca tanpa perlu command manual dari user.
+Bot Discord otomatis yang mengirimkan breaking news seputar dunia Artificial Intelligence (AI) setiap hari. Bot ini mengambil berita terbaru dari sumber-sumber tepercaya, merangkumnya dengan AI, mengelompokkannya per kategori, lalu mengirimkannya ke channel Discord dalam format embed yang rapi lengkap dengan gambar otomatis tanpa command manual.
 
 ## ✨ Fitur
 
 - Mengambil berita AI otomatis dari beberapa RSS feed tepercaya
 - Filter berita hanya yang terbit dalam 24 jam terakhir
-- Deduplikasi — berita yang sudah pernah dikirim tidak akan dikirim ulang
-- Tampilan embed rapi per berita (judul, sumber, deskripsi singkat, link)
-- Berjalan otomatis setiap 24 jam sekali tanpa campur tangan manual
-  
+- **Kategorisasi otomatis** per berita (Research, Produk, Bisnis, Security, Government) dengan warna embed berbeda per kategori
+- **Gambar thumbnail otomatis** — diambil langsung dari halaman artikel asli (meta tag `og:image`)
+
 ## 🛠️ Tech Stack
 
 | Tools | Kegunaan |
@@ -18,6 +17,9 @@ Bot Discord otomatis yang mengirimkan breaking news seputar dunia Artificial Int
 | discord.py | Library untuk membangun bot Discord |
 | feedparser | Membaca dan parsing RSS feed |
 | python-dotenv | Mengelola environment variable secara aman |
+| requests | Memanggil Groq API & scraping halaman artikel |
+| BeautifulSoup4 | Ambil gambar (`og:image`) dari halaman artikel |
+| Groq API | Rangkum berita & tentukan kategori otomatis (gratis) |
 
 ## 📰 Sumber Berita
 
@@ -27,23 +29,29 @@ Bot ini menarik data dari RSS feed berikut:
 - **VentureBeat AI** — `venturebeat.com/category/ai`
 - **The Verge AI** — `theverge.com/ai-artificial-intelligence`
 
+> Sumber bisa ditambah/dikurangi dengan mengedit dictionary `RSS_FEEDS` di `bot.py`.
+
 ## ⚙️ Cara Kerja
 
 Alur kerja bot ini, dari bot menyala sampai berita terkirim:
 
-1. **Bot online** — saat dijalankan, bot login ke Discord menggunakan token dari `.env`, lalu memulai jadwal otomatis (`tasks.loop`) yang berjalan setiap 24 jam.
+1. **Bot online** — bot login ke Discord menggunakan token dari environment variable, lalu jadwal otomatis diatur untuk selalu jalan jam **09:00 WIB** setiap hari (`tasks.loop(time=...)` dengan timezone UTC+7).
 
-2. **Ambil berita** — fungsi `ambil_berita()` membaca setiap RSS feed yang terdaftar di `RSS_FEEDS`, mengambil 5 artikel teratas per sumber.
+2. **Ambil berita** — fungsi `ambil_berita()` membaca setiap RSS feed di `RSS_FEEDS` dengan header `User-Agent` (supaya tidak diblokir situs), mengambil 5 artikel teratas per sumber.
 
 3. **Filter berita**:
-   - Berita yang terbit **lebih dari 24 jam lalu** dilewati (tidak basi/lama)
+   - Berita yang terbit **lebih dari 48 jam lalu** dilewati
    - Berita yang **linknya sudah pernah dikirim** dilewati (disimpan di `sent_links`, mencegah duplikat)
 
-4. **Bersihkan deskripsi** — ringkasan artikel dari RSS dibersihkan dari tag HTML dan dipotong maksimal 200 karakter agar rapi ditampilkan.
+4. **Proses AI (`rangkum_dan_kategori()`)** — judul dan deskripsi mentah tiap berita dikirim ke Groq API dengan instruksi tegas untuk **tidak menambah opini/informasi di luar teks asli**, menghasilkan:
+   - Ringkasan 2-3 kalimat berbahasa Indonesia
+   - Satu kategori: `Research`, `Produk`, `Bisnis`, `Security`, atau `Government`
 
-5. **Kirim ke Discord** — bot mengambil channel tujuan lewat `CHANNEL_ID`, mengirim 1 pesan judul pembuka, lalu setiap berita dikirim sebagai **embed terpisah** (judul jadi link, nama sumber, deskripsi singkat).
+5. **Ambil gambar (`ambil_gambar_artikel()`)** — bot membuka halaman artikel asli dan mengambil meta tag `og:image`, yaitu gambar preview yang sama seperti yang muncul saat link di-share di media sosial.
 
-6. **Ulangi otomatis** — proses di atas berulang setiap 24 jam selama bot tetap online di Railway.
+6. **Kirim ke Discord** — tiap berita dikirim sebagai **embed terpisah**: judul (jadi link), nama sumber, kategori, ringkasan AI, gambar, dan warna embed yang berbeda sesuai kategori.
+
+7. **Ulangi otomatis** — proses di atas berulang setiap hari jam 09:00 WIB selama bot tetap online.
 
 ## 📋 Contoh Hasil di Discord
 
@@ -52,30 +60,30 @@ Alur kerja bot ini, dari bot menyala sampai berita terkirim:
 
 ┌─────────────────────────────────
 │ TechCrunch AI
-│ Hackers are stealing Claude tokens from subscribers
-│ Last month, a Claude user noticed his account was 
-│ consuming tokens even though he wasn't working...
+│ OpenAI's Sam Altman says it would be 'ill-advised' 
+│ to go public in 2026
+│
+│ Ringkasan: OpenAI telah mengajukan IPO secara 
+│ konfidensial, namun CEO Sam Altman menegaskan 
+│ perusahaan tidak akan go public tahun ini.
+│
+│ Kategori: Bisnis
+│ [gambar thumbnail artikel]
 │ Baca selengkapnya di link judul
 └─────────────────────────────────
 
-┌─────────────────────────────────
-│ VentureBeat AI
-│ [judul berita lain]
-│ [deskripsi singkat]
-└─────────────────────────────────
-
-... (hingga 10 berita per hari)
+... (hingga 10 berita per hari, warna embed beda per kategori)
 ```
 
 ## 📁 Struktur Project
 
 ```
 ai-news-bot/
-├── .env              # token & channel ID (rahasia, tidak di-upload)
-├── .gitignore         # daftar file yang diabaikan Git
-├── bot.py             # kode utama bot
-├── requirements.txt   # daftar library yang dibutuhkan
-└── Procfile           # instruksi menjalankan bot untuk Railway
+├── .env              # token
+├── .gitignore        # daftar file yang diabaikan Git
+├── bot.py            # kode utama bot
+├── requirements.txt  # daftar library yang dibutuhkan
+└── Procfile          # instruksi menjalankan bot untuk Railway
 ```
 
 ## 🚀 Setup & Instalasi
@@ -89,25 +97,29 @@ ai-news-bot/
    ```
    DISCORD_TOKEN=token_bot_kamu
    CHANNEL_ID=id_channel_tujuan
+   GROQ_API_KEY=api_key_groq_kamu
    ```
 4. Jalankan bot:
    ```bash
    python bot.py
    ```
+   
+## 🐛 Troubleshooting & Lessons Learned
 
-## ☁️ Deployment
+Beberapa kendala yang pernah ditemui selama development, dicatat sebagai referensi:
 
-Bot di-deploy menggunakan **Railway**, terhubung langsung ke repo GitHub ini. Setiap kali ada `git push` ke branch `main`, Railway otomatis build ulang dan restart bot dengan versi terbaru.
+- **`AttributeError: 'NoneType' object has no attribute 'send'`** — terjadi kalau `client.get_channel()` gagal menemukan channel (biasanya karena cache belum ke-load). Solusi: pakai `await client.fetch_channel()` yang request langsung ke Discord API.
+- **`404 model_not_found` dari Groq** — nama model yang di-hardcode sudah tidak aktif lagi. Selalu cek model aktif di Playground Groq sebelum submit ke production.
+- **RSS feed mengembalikan 0 entry** — beberapa situs memblokir request tanpa `User-Agent` header. Solusi: tambahkan `request_headers={"User-Agent": "Mozilla/5.0"}` di `feedparser.parse()`. Gunakan `feed.bozo` dan `feed.bozo_exception` untuk debug kalau feed gagal di-parse.
+- **Berita yang lolos filter terlalu sedikit** — filter 24 jam kadang terlalu ketat untuk sumber yang jarang update. Diperlonggar jadi 48 jam.
+- **RSS feed sering tidak menyertakan data gambar** — solusinya scraping meta tag `og:image` langsung dari halaman artikel, bukan mengandalkan data dari RSS.
 
-Environment variable (`DISCORD_TOKEN`, `CHANNEL_ID`) diatur langsung di dashboard Railway pada tab **Variables**, bukan lewat file `.env` (karena file tersebut tidak ikut ter-upload demi keamanan).
+## 🔮 Rencana Pengembangan Selanjutnya
 
-## 🔮 Rencana Pengembangan
-
-- [ ] Menambahkan gambar/thumbnail per berita (menunggu integrasi AI API)
-- [ ] Rangkuman berita otomatis menggunakan AI
-- [ ] Jadwal pengiriman pada jam tetap (misal selalu jam 08:00)
-- [ ] Command manual untuk trigger pengiriman berita kapan saja
+- [ ] Slash command manual untuk trigger pengiriman berita kapan saja (`/news`)
+- [ ] Filter berita by kategori atau sumber lewat command
+- [ ] Multi-channel — kirim ke channel berbeda sesuai kategori berita
 
 ## ⚠️ Catatan Keamanan
 
-File `.env` **tidak boleh** di-commit ke GitHub karena berisi token rahasia. File ini sudah otomatis diabaikan lewat `.gitignore`. Jangan pernah menuliskan token secara langsung (hardcode) di dalam `bot.py`.
+File `.env` **tidak boleh** di-commit ke GitHub karena berisi token dan API key rahasia. File ini sudah otomatis diabaikan lewat `.gitignore`. Jangan pernah menuliskan token/API key secara langsung (hardcode) di dalam `bot.py`.

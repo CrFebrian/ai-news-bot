@@ -42,7 +42,7 @@ sent_links = set()
 
 # Jadwal kirim: setiap hari jam 09:00 WIB (UTC+7)
 WIB = timezone(timedelta(hours=7))
-JAM_KIRIM = datetime.strptime("09:00", "%H:%M").replace(tzinfo=WIB).time()
+JAM_KIRIM = datetime.strptime("09:00", "%H:%M").replace(tzinfo=WIB).timetz()
 
 
 # ================== AMBIL GAMBAR ARTIKEL ==================
